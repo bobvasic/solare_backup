@@ -1,0 +1,29 @@
+# This file defines the project configuration and dependencies for the Rust backend.
+
+[package]
+name = "solmint_backend"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+actix-web = "4"         # The web framework for building our API.
+serde = { version = "1.0", features = ["derive"] } # For serializing and deserializing data structures.
+serde_json = "1.0"      # For working with JSON data.
+actix-cors = "0.7"      # For handling Cross-Origin Resource Sharing (CORS).
+solana-sdk = "1.18.15"  # The official Solana SDK for Rust.
+solana-client = "1.18.15" # For interacting with a Solana RPC node.
+spl-token = { version = "4.0.0", features = ["no-entrypoint"] } # For interacting with the SPL Token program.
+spl-associated-token-account = "2.3.0" # For finding associated token accounts.
+bs58 = "0.5.1"          # For decoding and encoding base58 strings (like wallet addresses).
+rand = "0.8"            # For generating random numbers.
+mpl-token-metadata = "3.2.0" # For Metaplex token metadata.
+
+# Dependencies for handling multipart/form-data and futures.
+actix-multipart = "0.6"
+futures-util = "0.3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+# NEW: Add reqwest for making HTTP requests to the Gemini API.
+reqwest = { version = "0.11", features = ["json"] }
