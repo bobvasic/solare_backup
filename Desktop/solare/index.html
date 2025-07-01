@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solare - Solana Token Creator</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- Babel for in-browser JSX transformation -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #111827; /* Tailwind's bg-gray-900 */
+        }
+        .animate-blob { animation: blob 7s infinite; }
+        .animation-delay-2000 { animation-delay: 2s; }
+        .animation-delay-4000 { animation-delay: 4s; }
+        @keyframes blob {
+            0% { transform: translate(0px, 0px) scale(1); }
+            33% { transform: translate(30px, -50px) scale(1.1); }
+            66% { transform: translate(-20px, 20px) scale(0.9); }
+            100% { transform: translate(0px, 0px) scale(1); }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useCallback, useMemo, useEffect } = React;
+
+        // Success Modal Component
+        const SuccessModal = ({ isOpen, onClose, tokenAddress }) => {
+            if (!isOpen) return null;
+
+            const copyToClipboard = () => {
+                const textField = document.createElement('textarea');
+                textField.innerText = tokenAddress;
+                document.body.appendChild(textField);
+                textField.select();
+                document.execCommand('copy');
+                textField.remove();
+                alert('Token address copied to clipboard!');
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-70 z-[100] flex justify-center items-center backdrop-filter backdrop-blur-sm" onClick={onClose}>
+                    <div className="bg-gray-800 rounded-2xl shadow-2xl p-8 w-full max-w-md border border-gray-700 text-center" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-center items-center mb-4">
+                             <svg className="w-16 h-16 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        </div>
+                        <h2 className="text-2xl font-bold text-white mb-2">Token Created Successfully!</h2>
+                        <p className="text-gray-400 mb-6">Your new SPL token has been created on the Solana DevNet.</p>
+                        <div className="bg-gray-900 rounded-lg p-4 mb-6">
+                            <p className="text-sm text-gray-500 mb-2">New Token Contract Address</p>
+                            <p className="text-white font-mono break-all">{tokenAddress}</p>
+                        </div>
+                        <div className="flex space-x-4">
+                            <button onClick={copyToClipboard} className="w-full flex justify-center items-center p-3 bg-purple-600 rounded-lg hover:bg-purple-700 transition-colors text-white font-semibold">
+                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                                Copy Address
+                            </button>
+                             <a href={`https://explorer.solana.com/address/${tokenAddress}?cluster=devnet`} target="_blank" rel="noopener noreferrer" className="w-full flex justify-center items-center p-3 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors text-white font-semibold">
+                                View on Explorer
+                                <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+
+        // Wallet Modal Component
+        const WalletModal = ({ isOpen, onClose, handleConnectWallet }) => {
+            if (!isOpen) return null;
+            const walletOptions = [
+                { name: 'Phantom', icon: 'https://docs.phantom.com/~gitbook/image?url=https%3A%2F%2F187760183-files.gitbook.io%2F%7E%2Ffiles%2Fv0%2Fb%2Fgitbook-x-prod.appspot.com%2Fo%2Fspaces%252F-MVOiF6Zqit57q_hxJYp%252Fuploads%252FHEjleywo9QOnfYebBPCZ%252FPhantom_SVG_Icon.svg%3Falt%3Dmedia%26token%3D71b80a0a-def7-4f98-ae70-5e0843fdaaec&width=768&dpr=1&quality=100&sign=a9739ffb&sv=2' },
+                { name: 'Solflare', icon: 'https://www.solflare.com/wp-content/uploads/2024/11/App-Icon.svg' },
+                { name: 'Backpack', icon: 'https://www.backpack.app/logo.svg' }
+            ];
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-70 z-[100] flex justify-center items-center backdrop-filter backdrop-blur-sm" onClick={onClose}>
+                    <div className="bg-gray-800 rounded-2xl shadow-2xl p-8 w-full max-w-sm border border-gray-700" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-xl font-bold text-white">Connect a wallet</h2>
+                            <button onClick={onClose} className="text-gray-500 hover:text-white text-2xl">&times;</button>
+                        </div>
+                        <div className="space-y-4">
+                            {walletOptions.map(wallet => (
+                                <button key={wallet.name} onClick={() => handleConnectWallet(wallet.name)} className="w-full flex items-center p-4 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors">
+                                    <img src={wallet.icon} alt={`${wallet.name} logo`} className="w-8 h-8 mr-4 rounded-full" onError={(e) => { e.target.onerror = null; e.target.src="https://placehold.co/32x32/1f2937/ffffff?text=?" }} />
+                                    <span className="text-lg font-medium text-white">{wallet.name}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Token Creator Component
+        const TokenCreator = ({ walletAddress, setIsWalletModalOpen }) => {
+            const [tokenName, setTokenName] = useState('');
+            const [tokenSymbol, setTokenSymbol] = useState('');
+            const [decimals, setDecimals] = useState(9);
+            const [supply, setSupply] = useState(1000000);
+            const [description, setDescription] = useState('');
+            const [tokenImage, setTokenImage] = useState(null);
+            const [imagePreview, setImagePreview] = useState('');
+            const [isCreating, setIsCreating] = useState(false);
+            const [creationResult, setCreationResult] = useState(null);
+            const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+            const [newTokenAddress, setNewTokenAddress] = useState("");
+
+            const handleFileChange = (file) => {
+                if (file && file.type.startsWith('image/')) {
+                    setTokenImage(file);
+                    const reader = new FileReader();
+                    reader.onloadend = () => { setImagePreview(reader.result); };
+                    reader.readAsDataURL(file);
+                }
+            };
+
+            const onDrop = useCallback(e => { e.preventDefault(); e.stopPropagation(); if (e.dataTransfer.files && e.dataTransfer.files[0]) { handleFileChange(e.dataTransfer.files[0]); } }, []);
+            const onDragOver = useCallback(e => { e.preventDefault(); e.stopPropagation(); }, []);
+            const onFileSelect = (e) => { if (e.target.files && e.target.files[0]) { handleFileChange(e.target.files[0]); } };
+            
+            const cost = 0.1; // Service Fee
+
+            const handleCreateToken = async () => {
+                if (!walletAddress) {
+                    setIsWalletModalOpen(true);
+                    return;
+                }
+                setIsCreating(true);
+                setCreationResult(null);
+
+                // In a real application, you would make an API call to your Rust backend here.
+                // For this example, we will simulate the process.
+                setTimeout(() => {
+                    // Simulate a successful token creation
+                    const fakeTokenAddress = "FakETokEnAddreSs" + Math.random().toString(36).substring(2, 15);
+                    setNewTokenAddress(fakeTokenAddress);
+                    setCreationResult({ success: true, message: "Token created successfully!", details: { mintAddress: fakeTokenAddress } });
+                    setIsSuccessModalOpen(true);
+                    setIsCreating(false);
+                }, 2000);
+            };
+
+            return (
+                <div className="max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+                    <SuccessModal isOpen={isSuccessModalOpen} onClose={() => setIsSuccessModalOpen(false)} tokenAddress={newTokenAddress} />
+                    <div className="text-center">
+                        <h1 className="text-4xl font-extrabold text-white sm:text-5xl md:text-6xl">Create your Solana Token</h1>
+                        <p className="mt-4 max-w-2xl mx-auto text-xl text-gray-400">Launch your own cryptocurrency on the Solana DevNet in just a few clicks. No coding required.</p>
+                    </div>
+
+                    <div className="mt-12 bg-gray-900 bg-opacity-50 rounded-2xl shadow-2xl p-8 backdrop-filter backdrop-blur-md border border-gray-800">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div><label htmlFor="tokenName" className="block text-sm font-medium text-gray-300">Token Name</label><input type="text" id="tokenName" value={tokenName} onChange={(e) => setTokenName(e.target.value)} className="mt-1 block w-full bg-gray-800 border-gray-700 rounded-md shadow-sm py-3 px-4 text-white focus:outline-none focus:ring-purple-500 focus:border-purple-500" placeholder="e.g., Solare Coin" /></div>
+                            <div><label htmlFor="tokenSymbol" className="block text-sm font-medium text-gray-300">Token Symbol</label><input type="text" id="tokenSymbol" value={tokenSymbol} onChange={(e) => setTokenSymbol(e.target.value)} className="mt-1 block w-full bg-gray-800 border-gray-700 rounded-md shadow-sm py-3 px-4 text-white focus:outline-none focus:ring-purple-500 focus:border-purple-500" placeholder="e.g., SOLARE" /></div>
+                            <div><label htmlFor="decimals" className="block text-sm font-medium text-gray-300">Decimals</label><input type="number" id="decimals" value={decimals} onChange={(e) => setDecimals(parseInt(e.target.value))} className="mt-1 block w-full bg-gray-800 border-gray-700 rounded-md shadow-sm py-3 px-4 text-white focus:outline-none focus:ring-purple-500 focus:border-purple-500" /></div>
+                            <div><label htmlFor="supply" className="block text-sm font-medium text-gray-300">Total Supply</label><input type="number" id="supply" value={supply} onChange={(e) => setSupply(parseInt(e.target.value))} className="mt-1 block w-full bg-gray-800 border-gray-700 rounded-md shadow-sm py-3 px-4 text-white focus:outline-none focus:ring-purple-500 focus:border-purple-500" /></div>
+                            
+                            <div className="md:col-span-2"><label className="block text-sm font-medium text-gray-300">Token Image</label><div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-700 border-dashed rounded-md cursor-pointer" onDrop={onDrop} onDragOver={onDragOver} onClick={() => document.getElementById('file-upload').click()}><input id="file-upload" type="file" className="sr-only" onChange={onFileSelect} accept="image/*"/><div className="space-y-1 text-center">{imagePreview ? (<img src={imagePreview} alt="Token preview" className="h-24 w-24 object-cover rounded-full mx-auto" />) : (<div><svg className="mx-auto h-12 w-12 text-gray-500" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true"><path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg><p className="pl-1">Drag & drop, or click to upload</p><p className="text-xs text-gray-600">PNG, JPG, GIF up to 1MB</p></div>)}</div></div></div>
+                            <div className="md:col-span-2"><label htmlFor="description" className="block text-sm font-medium text-gray-300">Description</label><textarea id="description" rows="3" value={description} onChange={(e) => setDescription(e.target.value)} className="mt-1 block w-full bg-gray-800 border-gray-700 rounded-md shadow-sm py-3 px-4 text-white focus:outline-none focus:ring-purple-500 focus:border-purple-500" placeholder="A brief description of your token."></textarea></div>
+                        </div>
+                        
+                        <div className="mt-8 pt-6 border-t border-gray-800">
+                            <div className="flex justify-between items-center">
+                                <p className="text-lg text-white">Service Fee: <span className="font-bold text-purple-400">{cost.toFixed(1)} SOL</span></p>
+                                <button onClick={handleCreateToken} disabled={isCreating || !tokenName || !tokenSymbol || !tokenImage || !description} className="inline-flex items-center px-8 py-4 border border-transparent text-base font-medium rounded-full shadow-lg text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:bg-gray-500 disabled:cursor-not-allowed transition-all duration-300">
+                                    {isCreating ? 'Creating...' : 'Create Token'}
+                                </button>
+                            </div>
+                        </div>
+
+                        {creationResult && !creationResult.success && (
+                            <div className="mt-6 p-4 rounded-md bg-red-500 bg-opacity-20 text-red-300">
+                                <p className="font-bold">{creationResult.message || 'An Error Occurred'}</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+        
+        // Main App Component
+        const App = () => {
+            const [walletAddress, setWalletAddress] = useState(null);
+            const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
+            
+            const handleConnectWallet = async (walletName) => {
+                 // This is a simplified connection logic for demonstration.
+                 // A full implementation requires integrating with wallet adapter libraries.
+                if (window.solana && window.solana.isPhantom) {
+                    try {
+                        const response = await window.solana.connect();
+                        setWalletAddress(response.publicKey.toString());
+                        setIsWalletModalOpen(false);
+                    } catch (err) {
+                        console.error("Phantom connection failed", err);
+                    }
+                } else {
+                    alert("Phantom wallet not found. Please install it.");
+                }
+            };
+
+            const handleDisconnectWallet = async () => {
+                if (window.solana) {
+                    await window.solana.disconnect();
+                }
+                setWalletAddress(null);
+            };
+
+            const Navbar = () => (
+                <nav className="fixed top-0 left-0 right-0 z-50 bg-black bg-opacity-30 backdrop-filter backdrop-blur-lg border-b border-gray-800">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div className="flex items-center justify-between h-20">
+                            <div className="flex-shrink-0">
+                                <span className="text-white text-2xl font-bold tracking-wider flex items-center">
+                                    <svg className="inline-block w-8 h-8 mr-2 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                    Solare
+                                </span>
+                            </div>
+                            <div className="flex items-center">
+                                <button onClick={() => walletAddress ? handleDisconnectWallet() : setIsWalletModalOpen(true)} className="bg-purple-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-purple-700 transition-colors">
+                                    {walletAddress ? `Connected: ${walletAddress.substring(0, 4)}...${walletAddress.substring(walletAddress.length - 4)}` : "Connect Wallet"}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </nav>
+            );
+
+            return (
+                <div className="min-h-screen text-white relative overflow-x-hidden">
+                    <div className="absolute top-0 left-0 w-96 h-96 bg-purple-900 rounded-full mix-blend-screen filter blur-3xl opacity-20 animate-blob"></div>
+                    <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-900 rounded-full mix-blend-screen filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+                    <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-pink-900 rounded-full mix-blend-screen filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+                    
+                    <div className="relative z-10">
+                        <Navbar />
+                        <WalletModal isOpen={isWalletModalOpen} onClose={() => setIsWalletModalOpen(false)} handleConnectWallet={handleConnectWallet} />
+                        <main className="pt-20">
+                            <TokenCreator walletAddress={walletAddress} setIsWalletModalOpen={setIsWalletModalOpen} />
+                        </main>
+                        <footer className="bg-black bg-opacity-20 mt-20">
+                            <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 text-center text-gray-500 text-sm">
+                                <p>&copy; {new Date().getFullYear()} Solare. All Rights Reserved.</p>
+                            </div>
+                        </footer>
+                    </div>
+                </div>
+            );
+        };
+
+        const container = document.getElementById('root');
+        const root = ReactDOM.createRoot(container);
+        root.render(<App />);
+    </script>
+</body>
+</html>
