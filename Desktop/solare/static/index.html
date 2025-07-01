@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SolMint - Solana Token Creator</title>
-    <link rel="icon" type="image/jpeg" href="favicon.png">
+    <link rel="icon" type="image/jpeg" href="favicon.jpg">
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Google Fonts -->
@@ -16,7 +16,7 @@
     <!-- Babel for in-browser JSX transformation -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-    <!-- NEW: Solana Web3.js for fetching balance -->
+    <!-- Solana Web3.js for fetching balance -->
     <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.js"></script>
 
     <style>
@@ -176,7 +176,7 @@
                 setIdeas(null);
                 
                 try {
-                    const response = await fetch('http://127.0.0.1:8080/generate_ideas', {
+                    const response = await fetch('/api/generate_ideas', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ prompt }),
@@ -306,7 +306,7 @@
                         formData.append('tokenImage', tokenImage);
                     }
 
-                    const response = await fetch('http://127.0.0.1:8080/create_token', {
+                    const response = await fetch('/api/create_token', {
                         method: 'POST',
                         body: formData,
                     });

@@ -1,8 +1,6 @@
 /*
  * This is the main entry point for the Rust backend server.
- * It sets up an Actix web server with the token creation logic,
- * including metadata creation and authority management.
- * NOTE: Irys upload functionality is temporarily disabled.
+ * It is configured to run on Heroku and serve the static frontend.
  */
 
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, http::StatusCode};
@@ -10,12 +8,8 @@ use serde::{Deserialize, Serialize};
 use actix_cors::Cors;
 use serde_json::json;
 use std::str::FromStr;
-// use std::process::Command; // Temporarily unused
-// use std::fs::{self, File}; // Temporarily unused
-// use std::io::Write; // Temporarily unused
-use actix_multipart::Multipart;
-use futures_util::stream::StreamExt;
-
+use std::env; // To read environment variables like PORT and SERVER_WALLET_JSON
+use actix_files as fs; // For serving static files
 
 // --- Solana Imports ---
 use solana_client::rpc_client::RpcClient;
@@ -48,7 +42,7 @@ use mpl_token_metadata::{
 // --- Configuration Constants ---
 const SOLANA_RPC_URL: &str = "https://api.devnet.solana.com";
 const SERVER_WALLET_PATH: &str = "server-wallet.json";
-const GEMINI_API_KEY: &str = "AIzaSyCNB-iUE6Ub1k608T4dow2qWFG-EHYjMSk"; // Your Gemini API Key
+const GEMINI_API_KEY: &str = "AIzaSyCNB-iUE6Ub1k608T4dow2qWFG-EHYjMSk";
 
 
 // --- Data Structures ---
@@ -95,7 +89,6 @@ impl ErrorResponse {
     }
 }
 
-// --- Gemini API Structures ---
 #[derive(Deserialize)]
 struct IdeaGenerationRequest {
     prompt: String,
@@ -165,7 +158,6 @@ async fn generate_ideas(req_body: web::Json<IdeaGenerationRequest>) -> impl Resp
                     Ok(gemini_response) => {
                         if let Some(candidate) = gemini_response.candidates.get(0) {
                             if let Some(part) = candidate.content.parts.get(0) {
-                                // The response from Gemini is a JSON string, so we parse it again
                                 match serde_json::from_str::<serde_json::Value>(&part.text) {
                                     Ok(final_json) => HttpResponse::Ok().json(final_json),
                                     Err(_) => HttpResponse::build(StatusCode::INTERNAL_SERVER_ERROR).json(ErrorResponse::new("Failed to parse final JSON from Gemini.")),
@@ -189,11 +181,9 @@ async fn generate_ideas(req_body: web::Json<IdeaGenerationRequest>) -> impl Resp
 }
 
 #[post("/create_token")]
-async fn create_token(mut payload: Multipart) -> impl Responder {
-    let mut request_data: Option<CreateTokenRequest> = None;
-    // let mut image_path: Option<String> = None; // Temporarily disabled
+async fn create_token(mut payload: actix_multipart::Multipart) -> impl Responder {
+     let mut request_data: Option<CreateTokenRequest> = None;
 
-    // Process the multipart payload
     while let Some(item) = payload.next().await {
         let mut field = match item {
             Ok(f) => f,
@@ -205,7 +195,7 @@ async fn create_token(mut payload: Multipart) -> impl Responder {
 
         if field_name == "data" {
             let mut body = Vec::new();
-            while let Some(chunk) = field.next().await {
+            while let Some(chunk) = payload.next().await {
                 body.extend_from_slice(&chunk.unwrap());
             }
             request_data = serde_json::from_slice(&body).ok();
@@ -217,17 +207,24 @@ async fn create_token(mut payload: Multipart) -> impl Responder {
         None => return HttpResponse::build(StatusCode::BAD_REQUEST).json(ErrorResponse::new("Missing 'data' field in request.")),
     };
 
-    // --- Irys upload steps are temporarily bypassed ---
-    // The image upload and metadata JSON creation logic is commented out.
-    // We will use an empty string for the metadata URI for now.
     let metadata_uri = String::from("");
 
-    // Proceed with on-chain token creation
     let rpc_client = RpcClient::new(SOLANA_RPC_URL.to_string());
 
-    let server_keypair = match read_keypair_file(SERVER_WALLET_PATH) {
-        Ok(kp) => kp,
-        Err(_) => return HttpResponse::build(StatusCode::INTERNAL_SERVER_ERROR).json(ErrorResponse::new("Failed to load server wallet.")),
+    // CORRECTED: Load server keypair from environment variable on Heroku, or from file locally.
+    let server_keypair = match env::var("SERVER_WALLET_JSON") {
+        Ok(json_str) => {
+            let bytes: Vec<u8> = serde_json::from_str(&json_str)
+                .expect("Failed to parse SERVER_WALLET_JSON from environment variable.");
+            Keypair::from_bytes(&bytes)
+                .expect("Failed to create keypair from bytes provided by environment variable.")
+        },
+        Err(_) => {
+            match read_keypair_file(SERVER_WALLET_PATH) {
+                Ok(kp) => kp,
+                Err(_) => return HttpResponse::build(StatusCode::INTERNAL_SERVER_ERROR).json(ErrorResponse::new("Failed to load server wallet. Make sure 'server-wallet.json' exists locally or SERVER_WALLET_JSON is set on the server.")),
+            }
+        }
     };
     
     let user_pubkey = match Pubkey::from_str(&req_body.wallet_address) {
@@ -250,7 +247,7 @@ async fn create_token(mut payload: Multipart) -> impl Responder {
         data: mpl_token_metadata::types::DataV2 {
             name: req_body.token_name.clone(),
             symbol: req_body.token_symbol.clone(),
-            uri: metadata_uri, // Use the placeholder metadata URI
+            uri: metadata_uri,
             seller_fee_basis_points: 0,
             creators: Some(vec![Creator {
                 address: server_keypair.pubkey(),
@@ -364,7 +361,10 @@ async fn create_token(mut payload: Multipart) -> impl Responder {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    println!("🚀 Starting SolMint backend server at http://127.0.0.1:8080");
+    let port = env::var("PORT").unwrap_or_else(|_| "8080".to_string());
+    let addr = format!("0.0.0.0:{}", port);
+
+    println!("🚀 Starting SolMint backend server at http://{}", addr);
 
     HttpServer::new(|| {
         let cors = Cors::default()
@@ -375,11 +375,15 @@ async fn main() -> std::io::Result<()> {
 
         App::new()
             .wrap(cors)
-            .service(health_check)
-            .service(create_token)
-            .service(generate_ideas) // Register the new endpoint
+            .service(
+                web::scope("/api") // Prefix all API routes
+                    .service(health_check)
+                    .service(create_token)
+                    .service(generate_ideas)
+            )
+            .service(fs::Files::new("/", "../static").index_file("index.html")) // Serve static files
     })
-    .bind(("127.0.0.1", 8080))?
+    .bind(addr)?
     .run()
     .await
 }
