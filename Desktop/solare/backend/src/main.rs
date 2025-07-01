@@ -218,7 +218,9 @@ async fn create_token(mut payload: Multipart) -> impl Responder {
     };
 
     // --- Irys upload steps are temporarily bypassed ---
-    let metadata_uri = String::from(""); // Use an empty string as a placeholder
+    // The image upload and metadata JSON creation logic is commented out.
+    // We will use an empty string for the metadata URI for now.
+    let metadata_uri = String::from("");
 
     // Proceed with on-chain token creation
     let rpc_client = RpcClient::new(SOLANA_RPC_URL.to_string());

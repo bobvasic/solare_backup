@@ -1,0 +1,9 @@
+# Ignore the server wallet file
+backend/server-wallet.json
+
+# Ignore the Rust build artifacts
+backend/target/
+
+# Ignore IDE-specific files
+.idea/
+.vscode/

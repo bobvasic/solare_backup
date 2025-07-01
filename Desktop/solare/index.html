@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Solare - Solana Token Creator</title>
+    <title>SolMint - Solana Token Creator</title>
+    <link rel="icon" type="image/jpeg" href="favicon.png">
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Google Fonts -->
@@ -14,6 +15,9 @@
     
     <!-- Babel for in-browser JSX transformation -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- NEW: Solana Web3.js for fetching balance -->
+    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.js"></script>
 
     <style>
         body {
@@ -38,7 +42,7 @@
         const { useState, useCallback, useMemo, useEffect } = React;
 
         // Success Modal Component
-        const SuccessModal = ({ isOpen, onClose, tokenAddress }) => {
+        const SuccessModal = ({ isOpen, onClose, tokenAddress, message }) => {
             if (!isOpen) return null;
 
             const copyToClipboard = () => {
@@ -48,7 +52,6 @@
                 textField.select();
                 document.execCommand('copy');
                 textField.remove();
-                alert('Token address copied to clipboard!');
             };
 
             return (
@@ -57,7 +60,7 @@
                         <div className="flex justify-center items-center mb-4">
                              <svg className="w-16 h-16 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                         </div>
-                        <h2 className="text-2xl font-bold text-white mb-2">Token Created Successfully!</h2>
+                        <h2 className="text-2xl font-bold text-white mb-2">{message}</h2>
                         <p className="text-gray-400 mb-6">Your new SPL token has been created on the Solana DevNet.</p>
                         <div className="bg-gray-900 rounded-lg p-4 mb-6">
                             <p className="text-sm text-gray-500 mb-2">New Token Contract Address</p>
@@ -77,7 +80,6 @@
                 </div>
             );
         };
-
 
         // Wallet Modal Component
         const WalletModal = ({ isOpen, onClose, handleConnectWallet }) => {
@@ -106,6 +108,134 @@
                 </div>
             );
         };
+        
+        // Toggle Option Component
+        const ToggleOption = ({ checked, onChange }) => (
+            <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                    <button type="button" onClick={() => onChange(!checked)} className={`${checked ? 'bg-purple-600' : 'bg-gray-600'} relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-900`} role="switch" aria-checked={checked}>
+                        <span aria-hidden="true" className={`${checked ? 'translate-x-5' : 'translate-x-0'} pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out`}/>
+                    </button>
+                    <div className="ml-4">
+                        <h4 className="font-semibold text-white flex items-center">Custom Creator Info<span className="ml-2 text-xs font-semibold bg-red-600 text-white px-2 py-0.5 rounded-full flex items-center"><span className="mr-1">🔥</span>New</span></h4>
+                        <p className="text-sm text-gray-500">Change information about token creator in token metadata</p>
+                    </div>
+                </div>
+                <p className="text-sm font-semibold text-purple-400">Fee: 0.1 SOL</p>
+            </div>
+        );
+
+        // Revoke Option Component
+        const RevokeOption = ({ icon, title, description, checked, onChange }) => {
+            const ICONS = {
+                freeze: (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 2.293a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L10 8.414l-2.293 2.293a1 1 0 01-1.414-1.414l4-4zM10 2a1 1 0 011 1v6a1 1 0 11-2 0V3a1 1 0 011-1zm0 14a1 1 0 01-1-1v-2a1 1 0 112 0v2a1 1 0 01-1 1zm-5.707-1.707a1 1 0 010-1.414l2-2a1 1 0 011.414 1.414l-2 2a1 1 0 01-1.414 0zm11.414 0a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414l2 2a1 1 0 010 1.414zM4 10a1 1 0 01-1-1H1a1 1 0 110-2h2a1 1 0 011 1zm14 0a1 1 0 01-1-1h-2a1 1 0 110-2h2a1 1 0 011 1zm-5.707 5.707a1 1 0 010 1.414l-2 2a1 1 0 01-1.414-1.414l2-2a1 1 0 011.414 0z" clipRule="evenodd" /></svg>),
+                mint: (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M8.433 7.418c.158-.103.346-.196.567-.267v1.698a2.5 2.5 0 00-1.133 0V7.15c.191.07.37.158.533.268zM10 12.5a2.5 2.5 0 01-2.5-2.5V7.15a3.5 3.5 0 005 0v2.85a2.5 2.5 0 01-2.5 2.5z" /><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm0 2a10 10 0 100-20 10 10 0 000 20z" clipRule="evenodd" /></svg>),
+                update: (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>),
+            };
+            return (
+                <div onClick={() => onChange(!checked)} className={`p-4 border rounded-lg cursor-pointer transition-all ${checked ? 'border-purple-500 bg-purple-500 bg-opacity-10' : 'border-gray-700 hover:border-gray-600'}`}>
+                    <div className="flex justify-between items-start">
+                        <div className="flex items-center">
+                            <span className={`mr-2 ${checked ? 'text-purple-400' : 'text-gray-500'}`}>{ICONS[icon]}</span>
+                            <h4 className={`font-semibold ${checked ? 'text-white' : 'text-gray-300'}`}>{title}</h4>
+                        </div>
+                        <button type="button" className={`${checked ? 'bg-purple-600' : 'bg-gray-600'} relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-900`} role="switch" aria-checked={checked}>
+                            <span aria-hidden="true" className={`${checked ? 'translate-x-5' : 'translate-x-0'} pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out`}/>
+                        </button>
+                    </div>
+                    <p className="mt-2 text-sm text-gray-500">{description}</p>
+                </div>
+            );
+        };
+
+        // FAQ Item Component
+        const FaqItem = ({question, answer, isOpen, onClick}) => (
+            <div className="bg-gray-900 bg-opacity-50 rounded-lg backdrop-filter backdrop-blur-md border border-gray-800 transition-all duration-300">
+                <button onClick={onClick} className="w-full flex justify-between items-center text-left p-6">
+                    <h3 className={`text-lg font-medium ${isOpen ? 'text-purple-400' : 'text-white'}`}>{question}</h3>
+                    <svg className={`w-6 h-6 transform transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                <div className={`transition-all duration-500 ease-in-out overflow-hidden ${isOpen ? 'max-h-96' : 'max-h-0'}`}><div className="p-6 pt-0 text-gray-400 whitespace-pre-line"><p>{answer}</p></div></div>
+            </div>
+        );
+
+        // Token Idea Generator Component
+        const TokenIdeaGenerator = ({ setTokenName, setTokenSymbol, setDescription }) => {
+            const [prompt, setPrompt] = useState('');
+            const [ideas, setIdeas] = useState(null);
+            const [isLoading, setIsLoading] = useState(false);
+            const [error, setError] = useState(null);
+
+            const handleGenerate = async () => {
+                if (!prompt) {
+                    setError("Please enter a concept for your token.");
+                    return;
+                }
+                setIsLoading(true);
+                setError(null);
+                setIdeas(null);
+                
+                try {
+                    const response = await fetch('http://127.0.0.1:8080/generate_ideas', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ prompt }),
+                    });
+
+                    if (!response.ok) {
+                        const err = await response.json();
+                        throw new Error(err.message || 'Failed to generate ideas.');
+                    }
+
+                    const generatedIdeas = await response.json();
+                    setIdeas(generatedIdeas);
+
+                } catch (e) {
+                    setError(e.message);
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            return (
+                <div className="mb-10 p-6 bg-gray-900 bg-opacity-40 rounded-lg border border-gray-800">
+                    <h3 className="text-xl font-bold text-white flex items-center">Need an Idea? ✨</h3>
+                    <p className="text-gray-400 mt-1 mb-4">Describe your token concept and let AI brainstorm for you.</p>
+                    <textarea
+                        className="block w-full bg-gray-800 border-gray-700 rounded-md shadow-sm py-3 px-4 text-white focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+                        rows="3"
+                        placeholder="e.g., A token for a decentralized network of solar-powered microgrids."
+                        value={prompt}
+                        onChange={(e) => setPrompt(e.target.value)}
+                        disabled={isLoading}
+                    />
+                    <button
+                        onClick={handleGenerate}
+                        disabled={isLoading}
+                        className="mt-4 inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-gray-500 transition-all"
+                    >
+                        {isLoading ? 'Brainstorming...' : 'Generate Ideas'}
+                    </button>
+                    {error && <p className="mt-4 text-red-400">{error}</p>}
+                    {ideas && (
+                        <div className="mt-6 p-4 bg-gray-800 rounded-lg border border-gray-700 space-y-3">
+                            <div className="flex justify-between items-center">
+                                <p><strong>Name:</strong> <span className="text-purple-300">{ideas.name}</span></p>
+                                <button onClick={() => setTokenName(ideas.name)} className="text-sm bg-purple-600 hover:bg-purple-700 text-white font-bold py-1 px-3 rounded">Use</button>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <p><strong>Symbol:</strong> <span className="text-purple-300">{ideas.symbol}</span></p>
+                                <button onClick={() => setTokenSymbol(ideas.symbol)} className="text-sm bg-purple-600 hover:bg-purple-700 text-white font-bold py-1 px-3 rounded">Use</button>
+                            </div>
+                            <div className="flex justify-between items-start">
+                                <p className="flex-1 mr-4"><strong>Description:</strong> <span className="text-gray-300">{ideas.description}</span></p>
+                                <button onClick={() => setDescription(ideas.description)} className="text-sm bg-purple-600 hover:bg-purple-700 text-white font-bold py-1 px-3 rounded">Use</button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
 
         // Token Creator Component
         const TokenCreator = ({ walletAddress, setIsWalletModalOpen }) => {
@@ -116,10 +246,18 @@
             const [description, setDescription] = useState('');
             const [tokenImage, setTokenImage] = useState(null);
             const [imagePreview, setImagePreview] = useState('');
+            const [revokeFreeze, setRevokeFreeze] = useState(false);
+            const [revokeMint, setRevokeMint] = useState(false);
+            const [revokeUpdate, setRevokeUpdate] = useState(true);
+            const [customCreatorInfo, setCustomCreatorInfo] = useState(false);
+            const [creatorName, setCreatorName] = useState('');
+            const [creatorWebsite, setCreatorWebsite] = useState('');
+
             const [isCreating, setIsCreating] = useState(false);
             const [creationResult, setCreationResult] = useState(null);
             const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
             const [newTokenAddress, setNewTokenAddress] = useState("");
+            const [successMessage, setSuccessMessage] = useState("");
 
             const handleFileChange = (file) => {
                 if (file && file.type.startsWith('image/')) {
@@ -134,7 +272,12 @@
             const onDragOver = useCallback(e => { e.preventDefault(); e.stopPropagation(); }, []);
             const onFileSelect = (e) => { if (e.target.files && e.target.files[0]) { handleFileChange(e.target.files[0]); } };
             
-            const cost = 0.1; // Service Fee
+            const cost = useMemo(() => {
+                const serviceFee = 0.1;
+                let optionsCost = 0;
+                if (customCreatorInfo) optionsCost += 0.1;
+                return serviceFee + optionsCost;
+            }, [customCreatorInfo]);
 
             const handleCreateToken = async () => {
                 if (!walletAddress) {
@@ -144,40 +287,98 @@
                 setIsCreating(true);
                 setCreationResult(null);
 
-                // In a real application, you would make an API call to your Rust backend here.
-                // For this example, we will simulate the process.
-                setTimeout(() => {
-                    // Simulate a successful token creation
-                    const fakeTokenAddress = "FakETokEnAddreSs" + Math.random().toString(36).substring(2, 15);
-                    setNewTokenAddress(fakeTokenAddress);
-                    setCreationResult({ success: true, message: "Token created successfully!", details: { mintAddress: fakeTokenAddress } });
+                try {
+                    const formData = new FormData();
+                    const data = {
+                        walletAddress,
+                        decimals,
+                        supply,
+                        tokenName,
+                        tokenSymbol,
+                        description,
+                        revokeFreeze,
+                        revokeMint,
+                        revokeUpdate,
+                    };
+                    
+                    formData.append('data', JSON.stringify(data));
+                    if (tokenImage) {
+                        formData.append('tokenImage', tokenImage);
+                    }
+
+                    const response = await fetch('http://127.0.0.1:8080/create_token', {
+                        method: 'POST',
+                        body: formData,
+                    });
+
+                    const result = await response.json();
+
+                    if (!response.ok || !result.success) {
+                        throw result;
+                    }
+                    
+                    setNewTokenAddress(result.token_address);
+                    setSuccessMessage(result.message);
+                    setCreationResult(result);
                     setIsSuccessModalOpen(true);
+
+                } catch (error) {
+                    console.error("Full error object:", error);
+                    setCreationResult({
+                        success: false,
+                        message: error.message || "An error occurred while communicating with the backend.",
+                    });
+                } finally {
                     setIsCreating(false);
-                }, 2000);
+                }
             };
 
             return (
                 <div className="max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
-                    <SuccessModal isOpen={isSuccessModalOpen} onClose={() => setIsSuccessModalOpen(false)} tokenAddress={newTokenAddress} />
+                    <SuccessModal isOpen={isSuccessModalOpen} onClose={() => setIsSuccessModalOpen(false)} tokenAddress={newTokenAddress} message={successMessage} />
                     <div className="text-center">
                         <h1 className="text-4xl font-extrabold text-white sm:text-5xl md:text-6xl">Create your Solana Token</h1>
                         <p className="mt-4 max-w-2xl mx-auto text-xl text-gray-400">Launch your own cryptocurrency on the Solana DevNet in just a few clicks. No coding required.</p>
                     </div>
 
                     <div className="mt-12 bg-gray-900 bg-opacity-50 rounded-2xl shadow-2xl p-8 backdrop-filter backdrop-blur-md border border-gray-800">
+                        <TokenIdeaGenerator setTokenName={setTokenName} setTokenSymbol={setTokenSymbol} setDescription={setDescription} />
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <div><label htmlFor="tokenName" className="block text-sm font-medium text-gray-300">Token Name</label><input type="text" id="tokenName" value={tokenName} onChange={(e) => setTokenName(e.target.value)} className="mt-1 block w-full bg-gray-800 border-gray-700 rounded-md shadow-sm py-3 px-4 text-white focus:outline-none focus:ring-purple-500 focus:border-purple-500" placeholder="e.g., Solare Coin" /></div>
-                            <div><label htmlFor="tokenSymbol" className="block text-sm font-medium text-gray-300">Token Symbol</label><input type="text" id="tokenSymbol" value={tokenSymbol} onChange={(e) => setTokenSymbol(e.target.value)} className="mt-1 block w-full bg-gray-800 border-gray-700 rounded-md shadow-sm py-3 px-4 text-white focus:outline-none focus:ring-purple-500 focus:border-purple-500" placeholder="e.g., SOLARE" /></div>
+                            <div><label htmlFor="tokenName" className="block text-sm font-medium text-gray-300">Token Name</label><input type="text" id="tokenName" value={tokenName} onChange={(e) => setTokenName(e.target.value)} className="mt-1 block w-full bg-gray-800 border-gray-700 rounded-md shadow-sm py-3 px-4 text-white focus:outline-none focus:ring-purple-500 focus:border-purple-500" placeholder="e.g., SolMint Coin" /></div>
+                            <div><label htmlFor="tokenSymbol" className="block text-sm font-medium text-gray-300">Token Symbol</label><input type="text" id="tokenSymbol" value={tokenSymbol} onChange={(e) => setTokenSymbol(e.target.value)} className="mt-1 block w-full bg-gray-800 border-gray-700 rounded-md shadow-sm py-3 px-4 text-white focus:outline-none focus:ring-purple-500 focus:border-purple-500" placeholder="e.g., SMC" /></div>
                             <div><label htmlFor="decimals" className="block text-sm font-medium text-gray-300">Decimals</label><input type="number" id="decimals" value={decimals} onChange={(e) => setDecimals(parseInt(e.target.value))} className="mt-1 block w-full bg-gray-800 border-gray-700 rounded-md shadow-sm py-3 px-4 text-white focus:outline-none focus:ring-purple-500 focus:border-purple-500" /></div>
                             <div><label htmlFor="supply" className="block text-sm font-medium text-gray-300">Total Supply</label><input type="number" id="supply" value={supply} onChange={(e) => setSupply(parseInt(e.target.value))} className="mt-1 block w-full bg-gray-800 border-gray-700 rounded-md shadow-sm py-3 px-4 text-white focus:outline-none focus:ring-purple-500 focus:border-purple-500" /></div>
                             
                             <div className="md:col-span-2"><label className="block text-sm font-medium text-gray-300">Token Image</label><div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-700 border-dashed rounded-md cursor-pointer" onDrop={onDrop} onDragOver={onDragOver} onClick={() => document.getElementById('file-upload').click()}><input id="file-upload" type="file" className="sr-only" onChange={onFileSelect} accept="image/*"/><div className="space-y-1 text-center">{imagePreview ? (<img src={imagePreview} alt="Token preview" className="h-24 w-24 object-cover rounded-full mx-auto" />) : (<div><svg className="mx-auto h-12 w-12 text-gray-500" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true"><path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg><p className="pl-1">Drag & drop, or click to upload</p><p className="text-xs text-gray-600">PNG, JPG, GIF up to 1MB</p></div>)}</div></div></div>
                             <div className="md:col-span-2"><label htmlFor="description" className="block text-sm font-medium text-gray-300">Description</label><textarea id="description" rows="3" value={description} onChange={(e) => setDescription(e.target.value)} className="mt-1 block w-full bg-gray-800 border-gray-700 rounded-md shadow-sm py-3 px-4 text-white focus:outline-none focus:ring-purple-500 focus:border-purple-500" placeholder="A brief description of your token."></textarea></div>
+                        
+                            <div className="md:col-span-2 pt-8 mt-4 border-t border-gray-800">
+                                <div className="p-6 bg-gray-900 bg-opacity-40 rounded-lg">
+                                    <ToggleOption checked={customCreatorInfo} onChange={setCustomCreatorInfo} />
+                                    <div className={`transition-all duration-500 ease-in-out overflow-hidden ${customCreatorInfo ? 'max-h-96 mt-6' : 'max-h-0'}`}>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                            <div><label htmlFor="creatorName" className="block text-sm font-medium text-gray-300">Creator Name</label><input type="text" id="creatorName" value={creatorName} onChange={(e) => setCreatorName(e.target.value)} className="mt-1 block w-full bg-gray-800 border-gray-700 rounded-md shadow-sm py-3 px-4 text-white focus:outline-none focus:ring-purple-500 focus:border-purple-500" placeholder="e.g., SolMint Inc."/></div>
+                                            <div><label htmlFor="creatorWebsite" className="block text-sm font-medium text-gray-300">Creator Website</label><input type="url" id="creatorWebsite" value={creatorWebsite} onChange={(e) => setCreatorWebsite(e.target.value)} className="mt-1 block w-full bg-gray-800 border-gray-700 rounded-md shadow-sm py-3 px-4 text-white focus:outline-none focus:ring-purple-500 focus:border-purple-500" placeholder="https://solmint.io"/></div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="mt-6 pt-6 border-t border-gray-800">
+                                        <h4 className="text-lg font-medium text-gray-200">Revoke Authorities</h4>
+                                        <p className="mt-1 text-sm text-gray-500">Permanently revoke authorities to attract more investors.</p>
+                                        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                            <RevokeOption icon="freeze" title="Revoke Freeze" description="No one will be able to freeze token accounts." checked={revokeFreeze} onChange={setRevokeFreeze}/>
+                                            <RevokeOption icon="mint" title="Revoke Mint" description="No one will be able to create more tokens." checked={revokeMint} onChange={setRevokeMint} />
+                                            <RevokeOption icon="update" title="Revoke Metadata" description="No one can modify token metadata anymore." checked={revokeUpdate} onChange={setRevokeUpdate} />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         
                         <div className="mt-8 pt-6 border-t border-gray-800">
                             <div className="flex justify-between items-center">
-                                <p className="text-lg text-white">Service Fee: <span className="font-bold text-purple-400">{cost.toFixed(1)} SOL</span></p>
+                                <p className="text-lg text-white">Total Cost: <span className="font-bold text-purple-400">{cost.toFixed(2)} SOL</span></p>
                                 <button onClick={handleCreateToken} disabled={isCreating || !tokenName || !tokenSymbol || !tokenImage || !description} className="inline-flex items-center px-8 py-4 border border-transparent text-base font-medium rounded-full shadow-lg text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:bg-gray-500 disabled:cursor-not-allowed transition-all duration-300">
                                     {isCreating ? 'Creating...' : 'Create Token'}
                                 </button>
@@ -194,24 +395,42 @@
             );
         };
         
+        const FAQ = () => {
+            const [openIndex, setOpenIndex] = useState(null);
+            const faqData = [
+                { question: "What is SolMint?", answer: "SolMint is a decentralized application (dApp) that allows you to create and launch your own SPL tokens on the Solana blockchain without needing to write any code. Simply customize your token's details, and launch." },
+                { question: "What is an SPL token?", answer: "An SPL Token is a token on the Solana blockchain. It's the standard for creating fungible tokens, similar to the ERC-20 standard on Ethereum." },
+                { question: "What wallets can I use?", answer: "You can use any Solana wallet that supports the Wallet Standard, such as Phantom, Solflare, or Backpack. This application is configured to work with them." },
+            ];
+            return ( <div className="max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8"><div className="text-center mb-12"><h1 className="text-4xl font-extrabold text-white sm:text-5xl md:text-6xl">Frequently Asked Questions</h1><div className="inline-block w-24 h-1 bg-purple-600 rounded-full mt-4"></div></div><div className="space-y-4">{faqData.map((item, index) => (<FaqItem key={index} question={item.question} answer={item.answer} isOpen={openIndex === index} onClick={() => setOpenIndex(openIndex === index ? null : index)}/>))}</div></div> );
+        };
+
         // Main App Component
         const App = () => {
             const [walletAddress, setWalletAddress] = useState(null);
+            const [balance, setBalance] = useState(null); // State for wallet balance
             const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
+            const [activeView, setActiveView] = useState('creator'); // 'creator' or 'faq'
             
             const handleConnectWallet = async (walletName) => {
-                 // This is a simplified connection logic for demonstration.
-                 // A full implementation requires integrating with wallet adapter libraries.
                 if (window.solana && window.solana.isPhantom) {
                     try {
                         const response = await window.solana.connect();
-                        setWalletAddress(response.publicKey.toString());
+                        const address = response.publicKey.toString();
+                        setWalletAddress(address);
                         setIsWalletModalOpen(false);
+
+                        // Fetch the balance
+                        const connection = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl('devnet'));
+                        const publicKey = new solanaWeb3.PublicKey(address);
+                        const walletBalance = await connection.getBalance(publicKey);
+                        setBalance(walletBalance / solanaWeb3.LAMPORTS_PER_SOL);
+
                     } catch (err) {
                         console.error("Phantom connection failed", err);
                     }
                 } else {
-                    alert("Phantom wallet not found. Please install it.");
+                    alert("Phantom wallet not found. Please install the Phantom wallet extension.");
                 }
             };
 
@@ -220,6 +439,7 @@
                     await window.solana.disconnect();
                 }
                 setWalletAddress(null);
+                setBalance(null); // Reset balance on disconnect
             };
 
             const Navbar = () => (
@@ -227,15 +447,55 @@
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                         <div className="flex items-center justify-between h-20">
                             <div className="flex-shrink-0">
-                                <span className="text-white text-2xl font-bold tracking-wider flex items-center">
+                                <span className="text-white text-2xl font-bold tracking-wider flex items-center cursor-pointer" onClick={() => setActiveView('creator')}>
                                     <svg className="inline-block w-8 h-8 mr-2 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                                    Solare
+                                    SolMint
                                 </span>
                             </div>
-                            <div className="flex items-center">
-                                <button onClick={() => walletAddress ? handleDisconnectWallet() : setIsWalletModalOpen(true)} className="bg-purple-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-purple-700 transition-colors">
-                                    {walletAddress ? `Connected: ${walletAddress.substring(0, 4)}...${walletAddress.substring(walletAddress.length - 4)}` : "Connect Wallet"}
-                                </button>
+                            <div className="hidden md:flex items-center space-x-6">
+                                <button onClick={() => setActiveView('faq')} className="text-gray-300 hover:text-white text-sm font-medium transition-colors">FAQ</button>
+                                {walletAddress ? (
+                                    <div className="flex items-center space-x-4">
+                                        {balance !== null && (
+                                            <span className="bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                                                {balance.toFixed(4)} SOL
+                                            </span>
+                                        )}
+                                        <span className="bg-gray-800 text-white px-4 py-2 rounded-md text-sm font-medium">
+                                            {`${walletAddress.substring(0, 4)}...${walletAddress.substring(walletAddress.length - 4)}`}
+                                        </span>
+                                        <button onClick={handleDisconnectWallet} className="bg-red-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-red-700 transition-colors">
+                                            Disconnect
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button onClick={() => setIsWalletModalOpen(true)} className="bg-purple-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-purple-700 transition-colors">
+                                        Connect Wallet
+                                    </button>
+                                )}
+                            </div>
+                            <div className="md:hidden flex items-center">
+                                <button onClick={() => setActiveView('faq')} className="text-gray-300 hover:text-white p-2 rounded-md text-sm font-medium transition-colors">FAQ</button>
+                                <div className="ml-2">
+                                    {walletAddress ? (
+                                        <div className="flex items-center space-x-2">
+                                            {balance !== null && (
+                                                 <span className="bg-gray-700 text-white px-3 py-1.5 rounded-md text-xs font-medium">
+                                                    {balance.toFixed(2)} SOL
+                                                </span>
+                                            )}
+                                            <button onClick={handleDisconnectWallet} className="bg-red-600 text-white p-1.5 rounded-md text-xs font-medium hover:bg-red-700 transition-colors">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <button onClick={() => setIsWalletModalOpen(true)} className="bg-purple-600 text-white px-3 py-1.5 rounded-md text-xs font-medium hover:bg-purple-700 transition-colors">
+                                            Connect
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -252,11 +512,12 @@
                         <Navbar />
                         <WalletModal isOpen={isWalletModalOpen} onClose={() => setIsWalletModalOpen(false)} handleConnectWallet={handleConnectWallet} />
                         <main className="pt-20">
-                            <TokenCreator walletAddress={walletAddress} setIsWalletModalOpen={setIsWalletModalOpen} />
+                            {activeView === 'creator' && <TokenCreator walletAddress={walletAddress} setIsWalletModalOpen={setIsWalletModalOpen} />}
+                            {activeView === 'faq' && <FAQ />}
                         </main>
                         <footer className="bg-black bg-opacity-20 mt-20">
                             <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 text-center text-gray-500 text-sm">
-                                <p>&copy; {new Date().getFullYear()} Solare. All Rights Reserved.</p>
+                                <p>&copy; {new Date().getFullYear()} SolMint. All Rights Reserved.</p>
                             </div>
                         </footer>
                     </div>
